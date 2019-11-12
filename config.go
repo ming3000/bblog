@@ -47,13 +47,13 @@ var (
 type Config struct {
 	// the LogPath & FileName define the full path of the log.
 	// the current log is located at [LogPath]/[FileName].log
-	// the truncated log is located at [LogPath]/[FileName].log.[TruncateRollingTag]
-	// the compressed log is located at [LogPath]/[FileName].log.gz.[TruncateRollingTag]
+	// the truncated log is located at [LogPath]/[FileName].log.[RollingTimeTagFormat]
+	// the compressed log is located at [LogPath]/[FileName].log.gz.[RollingTimeTagFormat]
 	LogPath  string `json:"log_path"`
 	FileName string `json:"file_name"`
 
 	// postfix of truncated file
-	TruncateRollingTag string `json:"truncated_rolling_tag"`
+	RollingTimeTagFormat string `json:"rolling_time_tag_format"`
 	// the mod will auto delete the rolling file, set 0 to disable auto clean
 	MaxRollingRemain int `json:"max_rolling_remain"`
 
@@ -62,8 +62,8 @@ type Config struct {
 	RollingTimePattern string `json:"rolling_time_pattern"`
 	RollingFileSize    string `json:"rolling_file_size"`
 
-	WriteMode int  `json:"write_mode"`
-	Compress  bool `json:"compress"`
+	WriteMode  int `json:"write_mode"`
+	BufferSize int `json:"buffer_size"`
 }
 
 func (c *Config) LogFilePath() string {
@@ -75,14 +75,13 @@ func NewDefaultConfig() Config {
 		LogPath:  "./log",
 		FileName: "log",
 
-		TruncateRollingTag: "200601021504",
-		MaxRollingRemain:   0,
+		RollingTimeTagFormat: "200601021504",
+		MaxRollingRemain:     0,
 
 		RollingPolicy:      TimeRolling,
 		RollingTimePattern: "0 0 0 * * *",
 		RollingFileSize:    "512M",
 
 		WriteMode: WriteModeLock,
-		Compress:  true,
 	}
 }
