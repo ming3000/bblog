@@ -3,6 +3,7 @@ package bblog
 import (
 	"errors"
 	"os"
+	"path"
 )
 
 // 3 policy for rolling
@@ -13,6 +14,13 @@ const (
 	TimeRolling
 	// rolling by file size
 	FileSizeRolling
+)
+
+const (
+	WriteModeNone = iota
+	WriteModeLock
+	WriteModeAsync
+	WriteModeBuffered
 )
 
 const (
@@ -44,6 +52,37 @@ type Config struct {
 	LogPath  string `json:"log_path"`
 	FileName string `json:"file_name"`
 
+	// postfix of truncated file
 	TruncateRollingTag string `json:"truncated_rolling_tag"`
-	MaxRollingRemain   int    `json:"max_rolling_remain"`
+	// the mod will auto delete the rolling file, set 0 to disable auto clean
+	MaxRollingRemain int `json:"max_rolling_remain"`
+
+	RollingPolicy int `json:"rolling_policy"`
+	// cron job like pattern
+	RollingTimePattern string `json:"rolling_time_pattern"`
+	RollingFileSize    string `json:"rolling_file_size"`
+
+	WriteMode int  `json:"write_mode"`
+	Compress  bool `json:"compress"`
+}
+
+func (c *Config) LogFilePath() string {
+	return path.Join(c.LogPath, c.FileName)
+}
+
+func NewDefaultConfig() Config {
+	return Config{
+		LogPath:  "./log",
+		FileName: "log",
+
+		TruncateRollingTag: "200601021504",
+		MaxRollingRemain:   0,
+
+		RollingPolicy:      TimeRolling,
+		RollingTimePattern: "0 0 0 * * *",
+		RollingFileSize:    "512M",
+
+		WriteMode: WriteModeLock,
+		Compress:  true,
+	}
 }
