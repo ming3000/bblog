@@ -30,8 +30,10 @@ const (
 	// default open file mode is rw-r--r--
 	DefaultFileMode = os.FileMode(0644)
 	DefaultFileFlag = os.O_RDWR | os.O_CREATE | os.O_APPEND
-	// default rolling file size is 512MB
-	DefaultFileBytes     = 1024 * 1024 * 512
+
+	DefaultFileBytesStr = "512M"
+	DefaultFileBytes    = 1024 * 1024 * 512
+
 	DefaultFileTagFormat = "200601021504"
 )
 
@@ -57,14 +59,11 @@ type Option struct {
 	LogPath  string `json:"log_path"`
 	FileName string `json:"file_name"`
 
-	// the pkg will auto delete the rolling file, set 0 to disable auto clean
-	MaxRollingRemain int `json:"max_rolling_remain"`
-
 	RollingPolicy int `json:"rolling_policy"`
 	// cron job like pattern
 	RollingCronJobPattern string `json:"rolling_cron_job_pattern"`
 	// file size to start rolling
-	RollingFileSize string `json:"rolling_file_size"`
+	RollingFileBytes string `json:"rolling_file_bytes"`
 
 	WriteMode  int `json:"write_mode"`
 	BufferSize int `json:"buffer_size"`
@@ -75,7 +74,7 @@ func (o *Option) LogFilePath() string {
 }
 
 func (o *Option) ComputeRollingFileSize() int64 {
-	rollingFileSizeStr := strings.ToUpper(o.RollingFileSize)
+	rollingFileSizeStr := strings.ToUpper(o.RollingFileBytes)
 	rollingFileSizeByte := []byte(rollingFileSizeStr)
 
 	var tempValue int
@@ -118,11 +117,9 @@ func NewDefaultOption() Option {
 		LogPath:  "./log",
 		FileName: "log",
 
-		MaxRollingRemain: 0,
-
 		RollingPolicy:         TimeRolling,
 		RollingCronJobPattern: "0 0 0 * * *",
-		RollingFileSize:       "512M",
+		RollingFileBytes:      DefaultFileBytesStr,
 
 		WriteMode: WriteModeLock,
 	}
