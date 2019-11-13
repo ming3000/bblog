@@ -49,6 +49,7 @@ func (b *BaseLogger) Write(data []byte) (int, error) {
 }
 
 func (b *BaseLogger) Close() error {
+	b.manager.Close()
 	return (*os.File)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&b.fileObj)))).Close()
 }
 
@@ -58,12 +59,22 @@ type LockLogger struct {
 }
 
 func (l *LockLogger) Write(data []byte) (int, error) {
-
+	l.Lock()
+	defer l.Unlock()
+	select {
+	case fileName := <-l.manager.rollingChan:
+		if err := l.ReOpen(fileName); err != nil {
+			return 0, err
+		}
+	default:
+	}
+	return l.fileObj.Write(data)
 }
 
 func (l *LockLogger) Close() error {
 	l.Lock()
 	defer l.Unlock()
+	l.manager.Close()
 	return l.fileObj.Close()
 }
 
@@ -74,11 +85,26 @@ type BufferLogger struct {
 }
 
 func (b *BufferLogger) Write(data []byte) (int, error) {
-	fmt.Println(data)
-	return 0, nil
+	select {
+	case filename := <-w.fire:
+		if err := w.Reopen(filename); err != nil {
+			return 0, err
+		}
+	default:
+	}
+	buf := append(*w.buf, b...)
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.buf)), (unsafe.Pointer)(&buf))
+	if len(*w.buf) > w.cf.BufferWriterThershould && atomic.CompareAndSwapInt32(&w.swaping, 0, 1) {
+		nb := make([]byte, 0, w.cf.BufferWriterThershould*2)
+		ob := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&w.buf)), (unsafe.Pointer(&nb)))
+		w.file.Write(*(*[]byte)(ob))
+		atomic.StoreInt32(&w.swaping, 0)
+	}
+	return len(b), nil
 }
 
 func (b *BufferLogger) Close() error {
+	b.manager.Close()
 	_, _ = b.fileObj.Write(*b.buffer)
 	return b.fileObj.Close()
 }

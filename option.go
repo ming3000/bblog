@@ -36,14 +36,13 @@ const (
 	DefaultFileBytes             = 1024 * 1024 * 512
 	DefaultFileSizeCheckDuration = 1
 
-	// the default buffer size is 1M
-	DefaultBufferSize = 0x100000
+	// default buffer size is 1M
+	DefaultBufferSize = 1024 * 1024 * 1
 )
 
 var (
-	ErrInvalidOption        = errors.New("invalid option")
-	ErrorWriteContextClosed = errors.New("write context closed")
-	ErrOther                = errors.New("other error")
+	ErrInvalidOption = errors.New("invalid option")
+	ErrOther         = errors.New("other error")
 )
 
 type Option struct {
@@ -115,6 +114,7 @@ func NewDefaultOption() Option {
 		RollingCronJobPattern: "0 0 0 * * *",
 		RollingFileBytes:      DefaultFileBytesStr,
 
-		WriteMode: WriteModeLock,
+		WriteMode:  WriteModeLock,
+		BufferSize: DefaultBufferSize,
 	}
 }

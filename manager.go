@@ -13,7 +13,7 @@ type Manager struct {
 	rollingCronJob      *cron.Cron
 
 	rollingChan chan string
-	contextChan chan int
+	closeChan   chan int
 
 	wg   sync.WaitGroup
 	lock sync.Mutex
@@ -24,7 +24,8 @@ func (m *Manager) Rolling() chan string {
 }
 
 func (m *Manager) Close() {
-	close(m.contextChan)
+	m.closeChan <- 0
+	close(m.closeChan)
 	m.rollingCronJob.Stop()
 }
 
@@ -45,7 +46,7 @@ func NewManager(opt *Option) (*Manager, error) {
 		lock: sync.Mutex{},
 
 		rollingChan: make(chan string),
-		contextChan: make(chan int),
+		closeChan:   make(chan int),
 	}
 
 	switch opt.RollingPolicy {
@@ -73,7 +74,7 @@ func NewManager(opt *Option) (*Manager, error) {
 			for {
 				select {
 				// msg from writer, quit
-				case <-m.contextChan:
+				case <-m.closeChan:
 					return
 				case <-timer:
 					if fileInfo, err := os.Stat(logFilePath); err != nil {
