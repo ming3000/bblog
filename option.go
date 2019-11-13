@@ -12,17 +12,16 @@ import (
 // 3 policy for rolling
 const (
 	// no rolling
-	WithoutRolling = iota
+	PolicyWithoutRolling = iota
 	// rolling by time
-	TimeRolling
+	PolicyTimeRolling
 	// rolling by file size
-	FileSizeRolling
+	PolicyFileSizeRolling
 )
 
 const (
 	WriteModeNone = iota
 	WriteModeLock
-	WriteModeAsync
 	WriteModeBuffered
 )
 
@@ -31,23 +30,18 @@ const (
 	DefaultFileMode = os.FileMode(0644)
 	DefaultFileFlag = os.O_RDWR | os.O_CREATE | os.O_APPEND
 
-	DefaultFileBytesStr = "512M"
-	DefaultFileBytes    = 1024 * 1024 * 512
-
 	DefaultFileTagFormat = "200601021504"
-)
 
-const (
+	DefaultFileBytesStr          = "512M"
+	DefaultFileBytes             = 1024 * 1024 * 512
+	DefaultFileSizeCheckDuration = 1
+
 	// the default buffer size is 1M
-	BufferSize = 0x100000
-	// the queue for async write
-	QueueSize = 1024
-	// the precision defined the precision about the reopen operation condition check duration within second
-	Precision = 1
+	DefaultBufferSize = 0x100000
 )
 
 var (
-	ErrInvalidArgument      = errors.New("invalid argument")
+	ErrInvalidOption        = errors.New("invalid option")
 	ErrorWriteContextClosed = errors.New("write context closed")
 	ErrOther                = errors.New("other error")
 )
@@ -60,9 +54,9 @@ type Option struct {
 	FileName string `json:"file_name"`
 
 	RollingPolicy int `json:"rolling_policy"`
-	// cron job like pattern
+	// cron job like pattern, for time policy
 	RollingCronJobPattern string `json:"rolling_cron_job_pattern"`
-	// file size to start rolling
+	// file size to start rolling, for file size policy
 	RollingFileBytes string `json:"rolling_file_bytes"`
 
 	WriteMode  int `json:"write_mode"`
@@ -117,7 +111,7 @@ func NewDefaultOption() Option {
 		LogPath:  "./log",
 		FileName: "log",
 
-		RollingPolicy:         TimeRolling,
+		RollingPolicy:         PolicyTimeRolling,
 		RollingCronJobPattern: "0 0 0 * * *",
 		RollingFileBytes:      DefaultFileBytesStr,
 

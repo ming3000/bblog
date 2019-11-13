@@ -49,9 +49,9 @@ func NewManager(opt *Option) (*Manager, error) {
 	}
 
 	switch opt.RollingPolicy {
-	case WithoutRolling:
+	case PolicyWithoutRolling:
 		return m, nil
-	case TimeRolling:
+	case PolicyTimeRolling:
 		err := m.rollingCronJob.AddFunc(opt.RollingCronJobPattern, func() {
 			m.rollingChan <- m.newLogFileName(opt)
 		})
@@ -61,12 +61,12 @@ func NewManager(opt *Option) (*Manager, error) {
 			m.rollingCronJob.Start()
 			return m, nil
 		}
-	case FileSizeRolling:
+	case PolicyFileSizeRolling:
 		m.wg.Add(1)
 		defer m.wg.Wait()
 
 		go func() {
-			timer := time.Tick(time.Duration(Precision) * time.Second)
+			timer := time.Tick(time.Duration(DefaultFileSizeCheckDuration) * time.Second)
 			logFilePath := opt.LogFilePath()
 			m.wg.Done()
 
@@ -82,7 +82,7 @@ func NewManager(opt *Option) (*Manager, error) {
 						if fileInfo.Size() > opt.ComputeRollingFileSize() {
 							m.rollingChan <- m.newLogFileName(opt)
 						}
-					}
+					} // else >>>>
 				} // select >>>
 			} // for >>
 		}() // go func >
