@@ -44,7 +44,7 @@ var (
 	ErrOther                = errors.New("other error")
 )
 
-type Config struct {
+type Option struct {
 	// the LogPath & FileName define the full path of the log.
 	// the current log is located at [LogPath]/[FileName].log
 	// the truncated log is located at [LogPath]/[FileName].log.[RollingTimeTagFormat]
@@ -54,33 +54,34 @@ type Config struct {
 
 	// postfix of truncated file
 	RollingTimeTagFormat string `json:"rolling_time_tag_format"`
-	// the mod will auto delete the rolling file, set 0 to disable auto clean
+	// the pkg will auto delete the rolling file, set 0 to disable auto clean
 	MaxRollingRemain int `json:"max_rolling_remain"`
 
 	RollingPolicy int `json:"rolling_policy"`
 	// cron job like pattern
-	RollingTimePattern string `json:"rolling_time_pattern"`
-	RollingFileSize    string `json:"rolling_file_size"`
+	RollingCronJobPattern string `json:"rolling_cron_job_pattern"`
+	// file size to start rolling
+	RollingFileSize string `json:"rolling_file_size"`
 
 	WriteMode  int `json:"write_mode"`
 	BufferSize int `json:"buffer_size"`
 }
 
-func (c *Config) LogFilePath() string {
+func (c *Option) LogFilePath() string {
 	return path.Join(c.LogPath, c.FileName)
 }
 
-func NewDefaultConfig() Config {
-	return Config{
+func NewDefaultOption() Option {
+	return Option{
 		LogPath:  "./log",
 		FileName: "log",
 
 		RollingTimeTagFormat: "200601021504",
 		MaxRollingRemain:     0,
 
-		RollingPolicy:      TimeRolling,
-		RollingTimePattern: "0 0 0 * * *",
-		RollingFileSize:    "512M",
+		RollingPolicy:         TimeRolling,
+		RollingCronJobPattern: "0 0 0 * * *",
+		RollingFileSize:       "512M",
 
 		WriteMode: WriteModeLock,
 	}
