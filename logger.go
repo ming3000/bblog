@@ -1,7 +1,6 @@
 package bblog
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -81,26 +80,27 @@ func (l *LockLogger) Close() error {
 type BufferLogger struct {
 	BaseLogger
 	buffer *[]byte
-	swap   int
+	swap   int32
 }
 
 func (b *BufferLogger) Write(data []byte) (int, error) {
 	select {
-	case filename := <-w.fire:
-		if err := w.Reopen(filename); err != nil {
+	case filename := <-b.manager.rollingChan:
+		if err := b.ReOpen(filename); err != nil {
 			return 0, err
 		}
 	default:
 	}
-	buf := append(*w.buf, b...)
-	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.buf)), (unsafe.Pointer)(&buf))
-	if len(*w.buf) > w.cf.BufferWriterThershould && atomic.CompareAndSwapInt32(&w.swaping, 0, 1) {
-		nb := make([]byte, 0, w.cf.BufferWriterThershould*2)
-		ob := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&w.buf)), (unsafe.Pointer(&nb)))
-		w.file.Write(*(*[]byte)(ob))
-		atomic.StoreInt32(&w.swaping, 0)
+
+	buf := append(*b.buffer, data...)
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&b.buffer)), (unsafe.Pointer)(&buf))
+	if len(*b.buffer) > b.option.BufferSize && atomic.CompareAndSwapInt32(&b.swap, 0, 1) {
+		nb := make([]byte, 0, b.option.BufferSize*2)
+		ob := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&b.buffer)), unsafe.Pointer(&nb))
+		b.fileObj.Write(*(*[]byte)(ob))
+		atomic.StoreInt32(&b.swap, 0)
 	}
-	return len(b), nil
+	return len(data), nil
 }
 
 func (b *BufferLogger) Close() error {
