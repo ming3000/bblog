@@ -1,29 +1,26 @@
 package bblog
 
 import (
-	"fmt"
 	"github.com/robfig/cron"
-	"strconv"
-	"strings"
+	"os"
 	"sync"
 	"time"
 )
 
 // Manager used to trigger rolling event.
 type Manager struct {
-	currentLogStartAt time.Time
-	rollingCronJob    *cron.Cron
-	rollingFileSize   int64
+	currentLogStartTime time.Time
+	rollingCronJob      *cron.Cron
 
-	fireChan    chan string
+	rollingChan chan string
 	contextChan chan int
 
 	wg   sync.WaitGroup
 	lock sync.Mutex
 }
 
-func (m *Manager) Fire() chan string {
-	return m.fireChan
+func (m *Manager) Rolling() chan string {
+	return m.rollingChan
 }
 
 func (m *Manager) Close() {
@@ -31,50 +28,67 @@ func (m *Manager) Close() {
 	m.rollingCronJob.Stop()
 }
 
-func (m *Manager) computeRollingFileSize(cfg *Option) {
-	rollingFileSizeStr := strings.ToUpper(cfg.RollingFileSize)
-	rollingFileSizeByte := []byte(rollingFileSizeStr)
-
-	var tempValue int
-	var dstValue int64
-	var err error
-
-	switch {
-	case strings.Contains(rollingFileSizeStr, "K"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-1]))
-		dstValue = int64(tempValue) * 1024
-	case strings.Contains(rollingFileSizeStr, "KB"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-2]))
-		dstValue = int64(tempValue) * 1024
-	case strings.Contains(rollingFileSizeStr, "M"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-1]))
-		dstValue = int64(tempValue) * 1024 * 1024
-	case strings.Contains(rollingFileSizeStr, "MB"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-2]))
-		dstValue = int64(tempValue) * 1024 * 1024
-	case strings.Contains(rollingFileSizeStr, "G"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-1]))
-		dstValue = int64(tempValue) * 1024 * 1024 * 1024
-	case strings.Contains(rollingFileSizeStr, "GB"):
-		tempValue, err = strconv.Atoi(string(rollingFileSizeByte[:len(rollingFileSizeByte)-2]))
-		dstValue = int64(tempValue) * 1024 * 1024 * 1024
-	default:
-		err = fmt.Errorf("unit error")
-	}
-
-	if err != nil {
-		// default rolling file size is 512MB
-		m.rollingFileSize = 1024 * 1024 * 512
-	} else {
-		m.rollingFileSize = dstValue
-	}
-
-}
-
-func (m *Manager) makeTheLogFileName(cfg *Option) (logFileName string) {
+func (m *Manager) newLogFileName(opt *Option) (logFileName string) {
 	m.lock.Lock()
-	logFileName = cfg.LogFilePath() + ".log." + m.currentLogStartAt.Format(cfg.RollingTimeTagFormat)
-	m.currentLogStartAt = time.Now()
+	logFileName = opt.LogFilePath() + ".log." + m.currentLogStartTime.Format(DefaultFileTagFormat)
+	m.currentLogStartTime = time.Now()
 	m.lock.Unlock()
 	return
+}
+
+func NewManager(opt *Option) (*Manager, error) {
+	m := &Manager{
+		currentLogStartTime: time.Now(),
+		rollingCronJob:      cron.New(),
+
+		wg:   sync.WaitGroup{},
+		lock: sync.Mutex{},
+
+		rollingChan: make(chan string),
+		contextChan: make(chan int),
+	}
+
+	switch opt.RollingPolicy {
+	case WithoutRolling:
+		return m, nil
+	case TimeRolling:
+		err := m.rollingCronJob.AddFunc(opt.RollingCronJobPattern, func() {
+			m.rollingChan <- m.newLogFileName(opt)
+		})
+		if err != nil {
+			return nil, err
+		} else {
+			m.rollingCronJob.Start()
+			return m, nil
+		}
+	case FileSizeRolling:
+		m.wg.Add(1)
+		defer m.wg.Wait()
+
+		go func() {
+			timer := time.Tick(time.Duration(Precision) * time.Second)
+			logFilePath := opt.LogFilePath()
+			m.wg.Done()
+
+			for {
+				select {
+				// msg from writer, quit
+				case <-m.contextChan:
+					return
+				case <-timer:
+					if fileInfo, err := os.Stat(logFilePath); err != nil {
+						continue
+					} else {
+						if fileInfo.Size() > opt.ComputeRollingFileSize() {
+							m.rollingChan <- m.newLogFileName(opt)
+						}
+					}
+				} // select >>>
+			} // for >>
+		}() // go func >
+
+		return m, nil
+	default:
+		return m, nil
+	}
 }
